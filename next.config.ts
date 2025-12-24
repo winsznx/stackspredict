@@ -2,9 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Use Turbopack (default in Next.js 16)
-  turbopack: {
-    root: '/Users/macbook/stackspredict',
-  },
+  turbopack: {},
 
   // Server external packages for SSR compatibility - don't bundle these on server
   serverExternalPackages: [

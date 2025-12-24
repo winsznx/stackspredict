@@ -9,6 +9,7 @@ interface WalletContextType {
     balance: number;
     network: string | null;
     connecting: boolean;
+    error: string | null;
     connectWallet: () => void;
     disconnectWallet: () => void;
     switchNetwork: (network: 'mainnet' | 'testnet') => void;
@@ -25,23 +26,43 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const [network, setNetwork] = useState<string | null>(null);
     const [connecting, setConnecting] = useState(false);
     const [appKitModal, setAppKitModal] = useState<any>(null);
+    const [error, setError] = useState<string | null>(null);
 
     // Initialize AppKit on mount - client-side only
     useEffect(() => {
         let isMounted = true;
 
         const initWallet = async () => {
-            if (typeof window === 'undefined') return;
+            // Skip if not in browser
+            if (typeof window === 'undefined') {
+                return;
+            }
+
+            // Mark as mounted first so UI renders
+            setMounted(true);
 
             try {
+                // Check if project ID is configured
+                const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
+
+                if (!projectId) {
+                    console.warn('[WalletContext] NEXT_PUBLIC_REOWN_PROJECT_ID not set, wallet features disabled');
+                    setError('Wallet not configured');
+                    return;
+                }
+
                 // Dynamically import Reown modules
-                const { createAppKit } = await import('@reown/appkit/react');
-                const { BitcoinAdapter } = await import('@reown/appkit-adapter-bitcoin');
-                const { bitcoin, bitcoinTestnet } = await import('@reown/appkit/networks');
+                const [appkitReact, appkitAdapter, appkitNetworks] = await Promise.all([
+                    import('@reown/appkit/react'),
+                    import('@reown/appkit-adapter-bitcoin'),
+                    import('@reown/appkit/networks'),
+                ]);
 
-                const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID || '3a8170812b534d0ff9d794f19a901d64';
+                const { createAppKit } = appkitReact;
+                const { BitcoinAdapter } = appkitAdapter;
+                const { bitcoin, bitcoinTestnet } = appkitNetworks;
+
                 const isTestnet = process.env.NEXT_PUBLIC_NETWORK === 'testnet';
-
                 const bitcoinAdapter = new BitcoinAdapter();
 
                 const modal = createAppKit({
@@ -52,7 +73,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                         name: 'StacksPredict',
                         description: 'Bitcoin-Native Prediction Market Aggregator',
                         url: window.location.origin,
-                        icons: ['https://stackspredict.com/logo.png'],
+                        icons: [`${window.location.origin}/logo.png`],
                     },
                     features: {
                         analytics: true,
@@ -72,33 +93,39 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
                 if (isMounted) {
                     setAppKitModal(modal);
-                    setMounted(true);
-                    console.log('[WalletContext] Reown AppKit initialized');
+                    setError(null);
+                    console.log('[WalletContext] Reown AppKit initialized successfully');
 
                     // Subscribe to account changes
-                    modal.subscribeAccount((account: any) => {
-                        if (!isMounted) return;
-                        setIsConnected(account?.isConnected || false);
-                        setAddress(account?.address || null);
+                    try {
+                        modal.subscribeAccount((account: any) => {
+                            if (!isMounted) return;
+                            setIsConnected(account?.isConnected || false);
+                            setAddress(account?.address || null);
 
-                        if (account?.isConnected && account?.address) {
-                            setBalance(2.5); // Mock balance
-                            resolveBnsName(account.address).then(name => {
-                                if (isMounted) setBnsName(name);
-                            });
-                        } else {
-                            setBalance(0);
-                            setBnsName(null);
-                        }
-                    });
+                            if (account?.isConnected && account?.address) {
+                                setBalance(2.5); // Mock balance
+                                resolveBnsName(account.address).then(name => {
+                                    if (isMounted) setBnsName(name);
+                                });
+                            } else {
+                                setBalance(0);
+                                setBnsName(null);
+                            }
+                        });
 
-                    modal.subscribeNetwork((net: any) => {
-                        if (isMounted) setNetwork(net?.name || null);
-                    });
+                        modal.subscribeNetwork((net: any) => {
+                            if (isMounted) setNetwork(net?.name || null);
+                        });
+                    } catch (subError) {
+                        console.error('[WalletContext] Error subscribing to events:', subError);
+                    }
                 }
-            } catch (error) {
-                console.error('[WalletContext] Failed to initialize Reown:', error);
-                if (isMounted) setMounted(true);
+            } catch (err) {
+                console.error('[WalletContext] Failed to initialize Reown:', err);
+                if (isMounted) {
+                    setError('Failed to initialize wallet');
+                }
             }
         };
 
@@ -112,24 +139,43 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const connectWallet = useCallback(() => {
         if (appKitModal) {
             setConnecting(true);
-            appKitModal.open({ view: 'Connect' }).finally(() => {
+            try {
+                appKitModal.open({ view: 'Connect' }).finally(() => {
+                    setConnecting(false);
+                });
+            } catch (err) {
+                console.error('[WalletContext] Error opening modal:', err);
                 setConnecting(false);
-            });
+            }
+        } else if (error) {
+            console.warn('[WalletContext] Wallet not available:', error);
+            alert('Wallet connection is not available. Please check configuration.');
         } else {
             console.warn('[WalletContext] AppKit not initialized yet');
         }
-    }, [appKitModal]);
+    }, [appKitModal, error]);
 
     const disconnectWallet = useCallback(async () => {
+        try {
+            if (appKitModal) {
+                await appKitModal.disconnect?.();
+            }
+        } catch (err) {
+            console.error('[WalletContext] Error disconnecting:', err);
+        }
         setIsConnected(false);
         setAddress(null);
         setBalance(0);
         setBnsName(null);
-    }, []);
+    }, [appKitModal]);
 
     const switchNetwork = useCallback((networkType: 'mainnet' | 'testnet') => {
         if (appKitModal) {
-            appKitModal.open({ view: 'Networks' });
+            try {
+                appKitModal.open({ view: 'Networks' });
+            } catch (err) {
+                console.error('[WalletContext] Error switching network:', err);
+            }
         }
     }, [appKitModal]);
 
@@ -140,6 +186,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         balance,
         network,
         connecting,
+        error,
         connectWallet,
         disconnectWallet,
         switchNetwork,
