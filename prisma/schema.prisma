@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Market {
+  id               String   @id @default(uuid())
+  question         String
+  description      String?
+  category         String
+  yesPrice         Float
+  noPrice          Float
+  volume24h        Float    @default(0)
+  totalVolume      Float    @default(0)
+  liquidity        Float    @default(0)
+  endDate          DateTime
+  settlementSource String
+  contractId       String?
+  creator          String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  resolved         Boolean  @default(false)
+  outcome          String?
+  
+  // Relations
+  bets             Bet[]
+  positions        Position[]
+  mirrors          MarketMirror?
+  activities       Activity[]
+  
+  @@index([category])
+  @@index([endDate])
+  @@index([createdAt])
+}
+
+model MarketMirror {
+  id              String   @id @default(uuid())
+  marketId        String   @unique
+  market          Market   @relation(fields: [marketId], references: [id])
+  polymarketId    String?
+  kalshiTicker    String?
+  lastSynced      DateTime @default(now())
+  priceDifference Float?
+  
+  @@index([polymarketId])
+  @@index([kalshiTicker])
+}
+
+model Bet {
+  id          String   @id @default(uuid())
+  marketId    String
+  market      Market   @relation(fields: [marketId], references: [id])
+  userAddress String
+  bnsName     String?
+  side        String   // YES or NO
+  shares      Int
+  price       Float
+  txId        String   @unique
+  blockHeight Int
+  timestamp   DateTime @default(now())
+  
+  @@index([marketId])
+  @@index([userAddress])
+  @@index([timestamp])
+}
+
+model Position {
+  id              String   @id @default(uuid())
+  userAddress     String
+  marketId        String
+  market          Market   @relation(fields: [marketId], references: [id])
+  sharesYes       Int      @default(0)
+  sharesNo        Int      @default(0)
+  avgPriceYes     Float?
+  avgPriceNo      Float?
+  unrealizedPnL   Float    @default(0)
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([userAddress, marketId])
+  @@index([userAddress])
+}
+
+model Activity {
+  id          String   @id @default(uuid())
+  type        String   // BET, MARKET_CREATED, RESOLVED, LARGE_BET
+  userAddress String
+  bnsName     String?
+  marketId    String
+  market      Market   @relation(fields: [marketId], references: [id])
+  metadata    Json?
+  timestamp   DateTime @default(now())
+  
+  @@index([timestamp])
+  @@index([type])
+}
+
+model User {
+  id          String   @id @default(uuid())
+  address     String   @unique
+  bnsName     String?  @unique
+  verified    Boolean  @default(false)
+  expert      Boolean  @default(false)
+  totalProfit Float    @default(0)
+  winRate     Float    @default(0)
+  streak      Int      @default(0)
+  createdAt   DateTime @default(now())
+  
+  @@index([totalProfit])
+  @@index([winRate])
+}
+
+model StackingReward {
+  id             String   @id @default(uuid())
+  marketId       String
+  cycle          Int
+  totalRewards   Float
+  distributedAt  DateTime?
+  createdAt      DateTime @default(now())
+  
+  @@index([marketId])
+}
