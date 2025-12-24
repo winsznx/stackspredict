@@ -1,26 +1,111 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --radius: 0.625rem;
+
+  /* Base colors - Light mode only */
+  --background: 255 255 255;
+  /* White */
+  --foreground: 0 0 0;
+  /* Black */
+
+  /* Card */
+  --card: 255 255 255;
+  --card-foreground: 0 0 0;
+
+  /* Popover */
+  --popover: 255 255 255;
+  --popover-foreground: 0 0 0;
+
+  /* Primary - Deep Orange (#FF6B2C = rgb(255, 107, 44)) */
+  --primary: 255 107 44;
+  --primary-foreground: 255 255 255;
+
+  /* Secondary */
+  --secondary: 247 247 247;
+  --secondary-foreground: 0 0 0;
+
+  /* Muted */
+  --muted: 247 247 247;
+  --muted-foreground: 115 115 115;
+
+  /* Accent - Light orange */
+  --accent: 255 237 230;
+  --accent-foreground: 0 0 0;
+
+  /* Destructive - Red */
+  --destructive: 239 68 68;
+  --destructive-foreground: 255 255 255;
+
+  /* Border */
+  --border: 229 229 229;
+  --input: 229 229 229;
+  --ring: 255 107 44;
+
+  /* Chart colors - Orange variations */
+  --chart-1: 255 107 44;
+  /* Deep orange */
+  --chart-2: 255 140 80;
+  /* Medium orange */
+  --chart-3: 255 174 116;
+  /* Light orange */
+  --chart-4: 255 200 150;
+  /* Lighter orange */
+  --chart-5: 255 220 190;
+  /* Lightest orange */
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    @apply bg-background text-foreground;
+  }
 }
