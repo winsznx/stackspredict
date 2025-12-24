@@ -10,57 +10,76 @@ interface WalletContextType {
     network: string | null;
     connecting: boolean;
     error: string | null;
+    isReady: boolean;
     connectWallet: () => void;
     disconnectWallet: () => void;
     switchNetwork: (network: 'mainnet' | 'testnet') => void;
 }
 
-const WalletContext = createContext<WalletContextType | undefined>(undefined);
+const defaultContext: WalletContextType = {
+    isConnected: false,
+    address: null,
+    bnsName: null,
+    balance: 0,
+    network: null,
+    connecting: false,
+    error: null,
+    isReady: false,
+    connectWallet: () => { },
+    disconnectWallet: () => { },
+    switchNetwork: () => { },
+};
+
+const WalletContext = createContext<WalletContextType>(defaultContext);
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-    const [mounted, setMounted] = useState(false);
-    const [balance, setBalance] = useState(0);
-    const [bnsName, setBnsName] = useState<string | null>(null);
-    const [isConnected, setIsConnected] = useState(false);
-    const [address, setAddress] = useState<string | null>(null);
-    const [network, setNetwork] = useState<string | null>(null);
-    const [connecting, setConnecting] = useState(false);
+    const [state, setState] = useState({
+        isConnected: false,
+        address: null as string | null,
+        bnsName: null as string | null,
+        balance: 0,
+        network: null as string | null,
+        connecting: false,
+        error: null as string | null,
+        isReady: false,
+    });
     const [appKitModal, setAppKitModal] = useState<any>(null);
-    const [error, setError] = useState<string | null>(null);
 
     // Initialize AppKit on mount - client-side only
     useEffect(() => {
         let isMounted = true;
 
         const initWallet = async () => {
-            // Skip if not in browser
-            if (typeof window === 'undefined') {
+            // Skip SSR
+            if (typeof window === 'undefined') return;
+
+            // Mark as ready first
+            if (isMounted) {
+                setState(prev => ({ ...prev, isReady: true }));
+            }
+
+            // Check if project ID is configured
+            const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
+
+            if (!projectId) {
+                console.log('[WalletContext] No NEXT_PUBLIC_REOWN_PROJECT_ID - wallet disabled');
+                if (isMounted) {
+                    setState(prev => ({ ...prev, error: 'Wallet not configured' }));
+                }
                 return;
             }
 
-            // Mark as mounted first so UI renders
-            setMounted(true);
-
             try {
-                // Check if project ID is configured
-                const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
+                // Dynamic imports to prevent SSR issues
+                const appkitModule = await import('@reown/appkit/react');
+                const adapterModule = await import('@reown/appkit-adapter-bitcoin');
+                const networksModule = await import('@reown/appkit/networks');
 
-                if (!projectId) {
-                    console.warn('[WalletContext] NEXT_PUBLIC_REOWN_PROJECT_ID not set, wallet features disabled');
-                    setError('Wallet not configured');
-                    return;
-                }
+                if (!isMounted) return;
 
-                // Dynamically import Reown modules
-                const [appkitReact, appkitAdapter, appkitNetworks] = await Promise.all([
-                    import('@reown/appkit/react'),
-                    import('@reown/appkit-adapter-bitcoin'),
-                    import('@reown/appkit/networks'),
-                ]);
-
-                const { createAppKit } = appkitReact;
-                const { BitcoinAdapter } = appkitAdapter;
-                const { bitcoin, bitcoinTestnet } = appkitNetworks;
+                const { createAppKit } = appkitModule;
+                const { BitcoinAdapter } = adapterModule;
+                const { bitcoin, bitcoinTestnet } = networksModule;
 
                 const isTestnet = process.env.NEXT_PUBLIC_NETWORK === 'testnet';
                 const bitcoinAdapter = new BitcoinAdapter();
@@ -72,15 +91,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                     metadata: {
                         name: 'StacksPredict',
                         description: 'Bitcoin-Native Prediction Market Aggregator',
-                        url: window.location.origin,
-                        icons: [`${window.location.origin}/logo.png`],
+                        url: typeof window !== 'undefined' ? window.location.origin : 'https://stackspredict.vercel.app',
+                        icons: ['/logo.png'],
                     },
                     features: {
-                        analytics: true,
-                        email: true,
-                        socials: ['google', 'x', 'github'],
+                        analytics: false,
+                        email: false,
+                        socials: false,
                         swaps: false,
-                        onramp: true,
+                        onramp: false,
                     },
                     themeMode: 'light',
                     themeVariables: {
@@ -91,40 +110,45 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                     },
                 });
 
-                if (isMounted) {
-                    setAppKitModal(modal);
-                    setError(null);
-                    console.log('[WalletContext] Reown AppKit initialized successfully');
+                if (!isMounted) return;
 
-                    // Subscribe to account changes
-                    try {
-                        modal.subscribeAccount((account: any) => {
-                            if (!isMounted) return;
-                            setIsConnected(account?.isConnected || false);
-                            setAddress(account?.address || null);
+                setAppKitModal(modal);
+                console.log('[WalletContext] Reown AppKit initialized');
 
-                            if (account?.isConnected && account?.address) {
-                                setBalance(2.5); // Mock balance
-                                resolveBnsName(account.address).then(name => {
-                                    if (isMounted) setBnsName(name);
-                                });
-                            } else {
-                                setBalance(0);
-                                setBnsName(null);
+                // Subscribe to account changes (these don't return unsubscribe)
+                modal.subscribeAccount((account: any) => {
+                    if (!isMounted) return;
+
+                    const isConnected = account?.isConnected || false;
+                    const address = account?.address || null;
+
+                    setState(prev => ({
+                        ...prev,
+                        isConnected,
+                        address,
+                        balance: isConnected ? 2.5 : 0,
+                        error: null,
+                    }));
+
+                    if (isConnected && address) {
+                        resolveBnsName(address).then(name => {
+                            if (isMounted) {
+                                setState(prev => ({ ...prev, bnsName: name }));
                             }
                         });
-
-                        modal.subscribeNetwork((net: any) => {
-                            if (isMounted) setNetwork(net?.name || null);
-                        });
-                    } catch (subError) {
-                        console.error('[WalletContext] Error subscribing to events:', subError);
                     }
-                }
+                });
+
+                modal.subscribeNetwork((net: any) => {
+                    if (isMounted) {
+                        setState(prev => ({ ...prev, network: net?.name || null }));
+                    }
+                });
+
             } catch (err) {
-                console.error('[WalletContext] Failed to initialize Reown:', err);
+                console.error('[WalletContext] Error initializing:', err);
                 if (isMounted) {
-                    setError('Failed to initialize wallet');
+                    setState(prev => ({ ...prev, error: 'Failed to load wallet' }));
                 }
             }
         };
@@ -138,55 +162,38 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
     const connectWallet = useCallback(() => {
         if (appKitModal) {
-            setConnecting(true);
-            try {
-                appKitModal.open({ view: 'Connect' }).finally(() => {
-                    setConnecting(false);
-                });
-            } catch (err) {
-                console.error('[WalletContext] Error opening modal:', err);
-                setConnecting(false);
-            }
-        } else if (error) {
-            console.warn('[WalletContext] Wallet not available:', error);
-            alert('Wallet connection is not available. Please check configuration.');
-        } else {
-            console.warn('[WalletContext] AppKit not initialized yet');
+            setState(prev => ({ ...prev, connecting: true }));
+            appKitModal.open({ view: 'Connect' })
+                .catch((err: any) => console.error('[WalletContext] Connect error:', err))
+                .finally(() => setState(prev => ({ ...prev, connecting: false })));
+        } else if (state.error) {
+            alert('Wallet is not available. Please check configuration.');
         }
-    }, [appKitModal, error]);
+    }, [appKitModal, state.error]);
 
     const disconnectWallet = useCallback(async () => {
         try {
-            if (appKitModal) {
-                await appKitModal.disconnect?.();
-            }
+            await appKitModal?.disconnect?.();
         } catch (err) {
-            console.error('[WalletContext] Error disconnecting:', err);
+            console.error('[WalletContext] Disconnect error:', err);
         }
-        setIsConnected(false);
-        setAddress(null);
-        setBalance(0);
-        setBnsName(null);
+        setState(prev => ({
+            ...prev,
+            isConnected: false,
+            address: null,
+            balance: 0,
+            bnsName: null,
+        }));
     }, [appKitModal]);
 
-    const switchNetwork = useCallback((networkType: 'mainnet' | 'testnet') => {
+    const switchNetwork = useCallback(() => {
         if (appKitModal) {
-            try {
-                appKitModal.open({ view: 'Networks' });
-            } catch (err) {
-                console.error('[WalletContext] Error switching network:', err);
-            }
+            appKitModal.open({ view: 'Networks' }).catch(console.error);
         }
     }, [appKitModal]);
 
     const value: WalletContextType = {
-        isConnected,
-        address,
-        bnsName,
-        balance,
-        network,
-        connecting,
-        error,
+        ...state,
         connectWallet,
         disconnectWallet,
         switchNetwork,
@@ -200,27 +207,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 }
 
 export function useWallet() {
-    const context = useContext(WalletContext);
-    if (context === undefined) {
-        throw new Error('useWallet must be used within a WalletProvider');
-    }
-    return context;
+    return useContext(WalletContext);
 }
 
-// BNS name resolution helper
+// BNS name resolution
 async function resolveBnsName(address: string): Promise<string | null> {
     try {
-        const response = await fetch(
+        const res = await fetch(
             `https://stacks-node-api.mainnet.stacks.co/v1/addresses/stacks/${address}`
         );
-        const data = await response.json();
-
-        if (data.names && data.names.length > 0) {
-            return data.names[0];
-        }
-        return null;
-    } catch (error) {
-        console.error('Error resolving BNS name:', error);
+        const data = await res.json();
+        return data.names?.[0] || null;
+    } catch {
         return null;
     }
 }
