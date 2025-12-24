@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# StacksPredict - Bitcoin-Native Prediction Market
 
-## Getting Started
+A comprehensive prediction market aggregator built on the Stacks blockchain, combining the best features of Polymarket and Kalshi with Bitcoin-native advantages.
 
-First, run the development server:
+## 🚀 Features
+
+### 🎯 Core Features
+- **Multi-Platform Price Comparison** - See odds from StacksPredict, Polymarket, and Kalshi side-by-side
+- **Arbitrage Dashboard** - Detect price differences and profit from market inefficiencies
+- **Real-Time Updates** - WebSocket integration for instant price updates
+- **Stacking Yield** - Earn Bitcoin yield on escrow while waiting for resolution
+- **Activity Feed** - Live market activity with BNS name resolution
+- **Order Book (CLOB)** - Centralized limit order book visualization
+
+### 💎 Unique Selling Points
+1. **"Market Mirror"** - First platform to aggregate Polymarket AND Kalshi prices
+2. **"Arbitrage Recognition"** - Not just a market, but a cross-chain arbitrage tool
+3. **"Bitcoin-Native Settlement"** - DLC-based automatic resolution
+4. **"Social Skin-in-the-Game"** - Only shareholders can comment
+5. **"Stacking While You Wait"** - Earn yield on locked escrow
+
+## 📸 Screenshots
+
+### Arbitrage Dashboard
+![Arbitrage Dashboard](file:///Users/macbook/.gemini/antigravity/brain/cf6da162-4639-47ff-a5dc-9f3164a51a5d/arbitrage_dashboard_1766284360897.png)
+
+### Market Detail with Advanced Features
+![Market Detail](file:///Users/macbook/.gemini/antigravity/brain/cf6da162-4639-47ff-a5dc-9f3164a51a5d/market_detail_new_features_1766284385857.png)
+
+## 🛠 Tech Stack
+
+**Frontend**: Next.js 16, TypeScript, Tailwind CSS, shadcn/ui, Recharts, @stacks/connect  
+**Backend**: Prisma, PostgreSQL, Redis, WebSocket, Axios  
+**Blockchain**: Stacks, sBTC, Hiro Chainhooks, Pyth oracles
+
+## 🏃 Quick Start
 
 ```bash
+# Install dependencies
+npm install
+
+# Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit: **http://localhost:3000**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🌐 API Integrations
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Polymarket** - `lib/integrations/polymarket.ts`
+- **Kalshi** - `lib/integrations/kalshi.ts` (requires API key)
 
-## Learn More
+## 🔗 Environment Variables
 
-To learn more about Next.js, take a look at the following resources:
+Create `.env.local`:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+DATABASE_URL="postgresql://user:password@localhost:5432/stackspredict"
+REDIS_URL="redis://localhost:6379"
+KALSHI_API_KEY="your-key"
+NEXT_PUBLIC_NETWORK="testnet"
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📖 Documentation
 
-## Deploy on Vercel
+- [Backend Integration Guide](./INTEGRATION_GUIDE.md)
+- [Full Walkthrough](/.gemini/antigravity/brain/cf6da162-4639-47ff-a5dc-9f3164a51a5d/walkthrough.md)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🎯 Status
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Frontend**: ✅ Production-ready  
+**Backend**: ⏳ Infrastructure complete, awaiting smart contracts  
+**Deployment**: Ready for Vercel
+
+---
+
+**Built with ❤️ on Stacks | Powered by Bitcoin**
