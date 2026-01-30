@@ -1,76 +1,98 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-// Note: This webhook handler is ready for production use.
-// To enable database functionality, set up PostgreSQL and configure Prisma.
+import crypto from 'crypto';
 
 /**
- * Webhook handler for market creation events from Chainhooks
+ * Timing-safe comparison to prevent timing attacks on auth headers
  */
-export async function POST(request: NextRequest) {
-    try {
-        // Verify webhook secret
-        const authHeader = request.headers.get('authorization');
-        const expectedAuth = `Bearer ${process.env.WEBHOOK_SECRET}`;
-
-        if (process.env.WEBHOOK_SECRET && authHeader !== expectedAuth) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const payload = await request.json();
-
-        // Process each transaction
-        for (const block of payload.apply || []) {
-            for (const tx of block.transactions || []) {
-                const marketData = parseMarketTransaction(tx);
-
-                if (!marketData) continue;
-
-                console.log('[Webhook] New market created:', {
-                    txId: tx.transaction_identifier?.hash,
-                    creator: tx.metadata?.sender,
-                    question: marketData.question,
-                    category: marketData.category,
-                    endDate: marketData.endDate,
-                });
-
-                // TODO: Enable database operations when Prisma is configured
-                // await saveMarketToDatabase(marketData, tx, block);
-
-                // TODO: Publish to Redis for WebSocket broadcast
-                // await publishUpdate('new-markets', { ... });
-            }
-        }
-
-        return NextResponse.json({
-            success: true,
-            message: 'Market creation webhook received.'
-        });
-    } catch (error) {
-        console.error('[Webhook] Error processing market creation:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
+function safeCompare(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 }
 
-function parseMarketTransaction(tx: any) {
-    try {
-        const method = tx.metadata?.kind?.data?.method;
+export async function POST(request: NextRequest) {
+  try {
+    // 1. Enhanced Security Check
+    const authHeader = request.headers.get('authorization');
+    const webhookSecret = process.env.WEBHOOK_SECRET;
 
-        if (method !== 'create-market') {
-            return null;
-        }
-
-        const args = tx.metadata.kind.data.args;
-
-        return {
-            question: args[0],
-            description: args[1] || null,
-            category: args[2],
-            endDate: parseInt(args[3]), // Unix timestamp
-            settlementSource: args[4],
-            initialLiquidity: parseFloat(args[5]),
-        };
-    } catch (error) {
-        console.error('[Webhook] Error parsing transaction:', error);
-        return null;
+    if (webhookSecret) {
+      const expectedAuth = `Bearer ${webhookSecret}`;
+      if (!authHeader || !safeCompare(authHeader, expectedAuth)) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
     }
+
+    const payload = await request.json();
+
+    // 2. Validate Chainhook Payload Structure
+    if (!payload.apply || !Array.isArray(payload.apply)) {
+      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    }
+
+    const results = [];
+
+    for (const block of payload.apply) {
+      for (const tx of block.transactions || []) {
+        const marketData = parseMarketTransaction(tx);
+        if (!marketData) continue;
+
+        const txHash = tx.transaction_identifier?.hash;
+
+        try {
+          // 3. TODO: Idempotency Check
+          // const existing = await prisma.market.findUnique({ where: { txHash } });
+          // if (existing) continue;
+
+          // 4. TODO: Database Operation
+          // await saveMarketToDatabase(marketData, txHash, block.block_identifier.index);
+          
+          results.push({ txHash, status: 'processed' });
+        } catch (dbError) {
+          console.error(`[Webhook] Failed to save tx ${txHash}:`, dbError);
+          // Don't throw here; continue to next transaction
+        }
+      }
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      processedCount: results.length 
+    });
+
+  } catch (error) {
+    console.error('[Webhook] Critical Error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// 5. Typesafe Parsing
+interface MarketData {
+  question: string;
+  description: string | null;
+  category: string;
+  endDate: number;
+  settlementSource: string;
+  initialLiquidity: number;
+}
+
+function parseMarketTransaction(tx: any): MarketData | null {
+  try {
+    const data = tx.metadata?.kind?.data;
+    if (data?.method !== 'create-market') return null;
+
+    const args = data.args;
+    // Basic validation that args exist
+    if (!args || args.length < 5) return null;
+
+    return {
+      question: args[0],
+      description: args[1] || null,
+      category: args[2],
+      endDate: parseInt(args[3], 10), 
+      settlementSource: args[4],
+      initialLiquidity: parseFloat(args[5]),
+    };
+  } catch (error) {
+    return null;
+  }
 }
